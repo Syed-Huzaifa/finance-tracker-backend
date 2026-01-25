@@ -44,8 +44,8 @@ NODE_ENV=development
 DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=finance_tracker
-DB_USER=postgres
-DB_PASSWORD=postgres
+DB_USER=YOUR_DB_USER
+DB_PASSWORD=YOUR_DB_PASSWORD
 
 # PIN Security (for hashing PINs)
 PIN_SECRET=your-secret-key-here-change-in-production
