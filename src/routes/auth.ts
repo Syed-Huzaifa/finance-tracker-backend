@@ -1,13 +1,15 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import pool from '../db/connection.js';
 import { z } from 'zod';
+import dotenv from 'dotenv';
+dotenv.config();
 
 const router = express.Router();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+const JWT_SECRET: string = process.env.JWT_SECRET as string;
+const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN || '7d';
 
 // Validation schemas
 const signupSchema = z.object({
@@ -68,8 +70,8 @@ router.post('/signup', async (req, res) => {
       // Generate JWT token
       const token = jwt.sign(
         { userId: newUser[0].id, email: newUser[0].email },
-        JWT_SECRET,
-        { expiresIn: JWT_EXPIRES_IN }
+        JWT_SECRET as string,
+        { expiresIn: JWT_EXPIRES_IN } as SignOptions
       );
 
       res.status(201).json({
@@ -152,8 +154,8 @@ router.post('/signin', async (req, res) => {
     // Generate JWT token
     const token = jwt.sign(
       { userId: user.id, email: user.email },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
+      JWT_SECRET as string,
+      { expiresIn: JWT_EXPIRES_IN } as SignOptions
     );
 
     res.json({
