@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import authRouter from './routes/auth.js';
 import settingsRouter from './routes/settings.js';
 import categoriesRouter from './routes/categories.js';
 import expensesRouter from './routes/expenses.js';
@@ -8,7 +9,7 @@ import fixedExpensesRouter from './routes/fixedExpenses.js';
 import creditCardsRouter from './routes/creditCards.js';
 import debtsRouter from './routes/debts.js';
 import goalsRouter from './routes/goals.js';
-import { verifyPin } from './middleware/pinAuth.js';
+import { verifyToken } from './middleware/jwtAuth.js';
 
 dotenv.config();
 
@@ -20,15 +21,18 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Health check endpoint (no PIN required)
+// Health check endpoint (no authentication required)
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Finance Tracker API is running' });
 });
 
-// Apply PIN verification middleware to all API routes
-app.use('/api', verifyPin);
+// Auth routes (no authentication required)
+app.use('/api/auth', authRouter);
 
-// Routes
+// Apply JWT verification middleware to all protected API routes
+app.use('/api', verifyToken);
+
+// Protected routes
 app.use('/api/settings', settingsRouter);
 app.use('/api/categories', categoriesRouter);
 app.use('/api/expenses', expensesRouter);

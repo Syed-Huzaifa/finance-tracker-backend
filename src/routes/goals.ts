@@ -1,13 +1,20 @@
 import express from 'express';
 import pool from '../db/connection.js';
+import { AuthenticatedRequest } from '../middleware/jwtAuth.js';
 
 const router = express.Router();
 
 // Get all goals
-router.get('/', async (req, res) => {
+router.get('/', async (req: AuthenticatedRequest, res) => {
   try {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { rows } = await pool.query(
-      'SELECT * FROM public.goals ORDER BY priority'
+      'SELECT * FROM public.goals WHERE user_id = $1 ORDER BY priority',
+      [userId]
     );
     res.json(rows);
   } catch (error) {
@@ -17,8 +24,13 @@ router.get('/', async (req, res) => {
 });
 
 // Create goal
-router.post('/', async (req, res) => {
+router.post('/', async (req: AuthenticatedRequest, res) => {
   try {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const {
       name,
       target_amount,
@@ -31,10 +43,11 @@ router.post('/', async (req, res) => {
     
     const { rows } = await pool.query(
       `INSERT INTO public.goals 
-       (name, target_amount, current_amount, goal_type, priority, target_date, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       (user_id, name, target_amount, current_amount, goal_type, priority, target_date, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
       [
+        userId,
         name,
         target_amount,
         current_amount || 0,
@@ -53,8 +66,13 @@ router.post('/', async (req, res) => {
 });
 
 // Update goal
-router.put('/:id', async (req, res) => {
+router.put('/:id', async (req: AuthenticatedRequest, res) => {
   try {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { id } = req.params;
     const updates = req.body;
     
@@ -73,12 +91,12 @@ router.put('/:id', async (req, res) => {
       return res.status(400).json({ error: 'No fields to update' });
     }
 
-    values.push(id);
+    values.push(id, userId);
 
     const { rows } = await pool.query(
       `UPDATE public.goals 
        SET ${updateFields.join(', ')} 
-       WHERE id = $${paramIndex}
+       WHERE id = $${paramIndex} AND user_id = $${paramIndex + 1}
        RETURNING *`,
       values
     );
@@ -95,13 +113,18 @@ router.put('/:id', async (req, res) => {
 });
 
 // Delete goal
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', async (req: AuthenticatedRequest, res) => {
   try {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { id } = req.params;
     
     const { rows } = await pool.query(
-      'DELETE FROM public.goals WHERE id = $1 RETURNING *',
-      [id]
+      'DELETE FROM public.goals WHERE id = $1 AND user_id = $2 RETURNING *',
+      [id, userId]
     );
     
     if (rows.length === 0) {
@@ -116,9 +139,24 @@ router.delete('/:id', async (req, res) => {
 });
 
 // Get savings contributions
-router.get('/:id/contributions', async (req, res) => {
+router.get('/:id/contributions', async (req: AuthenticatedRequest, res) => {
   try {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { id } = req.params;
+    
+    // Verify the goal belongs to the user
+    const { rows: goalCheck } = await pool.query(
+      'SELECT id FROM public.goals WHERE id = $1 AND user_id = $2',
+      [id, userId]
+    );
+    
+    if (goalCheck.length === 0) {
+      return res.status(404).json({ error: 'Goal not found' });
+    }
     
     const { rows } = await pool.query(
       `SELECT * FROM public.savings_contributions 
@@ -135,10 +173,25 @@ router.get('/:id/contributions', async (req, res) => {
 });
 
 // Create savings contribution
-router.post('/:id/contributions', async (req, res) => {
+router.post('/:id/contributions', async (req: AuthenticatedRequest, res) => {
   try {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { id } = req.params;
     const { amount, contribution_date, notes } = req.body;
+    
+    // Verify the goal belongs to the user
+    const { rows: goalCheck } = await pool.query(
+      'SELECT id FROM public.goals WHERE id = $1 AND user_id = $2',
+      [id, userId]
+    );
+    
+    if (goalCheck.length === 0) {
+      return res.status(404).json({ error: 'Goal not found' });
+    }
     
     // Add contribution
     const { rows: contributionRows } = await pool.query(
@@ -150,8 +203,8 @@ router.post('/:id/contributions', async (req, res) => {
     
     // Update current amount on goal
     const { rows: goalRows } = await pool.query(
-      'SELECT current_amount, target_amount FROM public.goals WHERE id = $1',
-      [id]
+      'SELECT current_amount, target_amount FROM public.goals WHERE id = $1 AND user_id = $2',
+      [id, userId]
     );
     
     if (goalRows.length > 0) {
@@ -161,8 +214,8 @@ router.post('/:id/contributions', async (req, res) => {
       await pool.query(
         `UPDATE public.goals 
          SET current_amount = $1, is_completed = $2
-         WHERE id = $3`,
-        [newAmount, newAmount >= targetAmount, id]
+         WHERE id = $3 AND user_id = $4`,
+        [newAmount, newAmount >= targetAmount, id, userId]
       );
     }
     
@@ -174,19 +227,29 @@ router.post('/:id/contributions', async (req, res) => {
 });
 
 // Get all savings contributions
-router.get('/contributions/all', async (req, res) => {
+router.get('/contributions/all', async (req: AuthenticatedRequest, res) => {
   try {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { goalId } = req.query;
     
-    let query = 'SELECT * FROM public.savings_contributions WHERE 1=1';
-    const params: any[] = [];
+    let query = `
+      SELECT sc.* FROM public.savings_contributions sc
+      INNER JOIN public.goals g ON sc.goal_id = g.id
+      WHERE g.user_id = $1
+    `;
+    const params: any[] = [userId];
+    let paramIndex = 2;
     
     if (goalId) {
-      query += ' AND goal_id = $1';
+      query += ` AND sc.goal_id = $${paramIndex++}`;
       params.push(goalId);
     }
     
-    query += ' ORDER BY contribution_date DESC';
+    query += ' ORDER BY sc.contribution_date DESC';
     
     const { rows } = await pool.query(query, params);
     res.json(rows);

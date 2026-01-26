@@ -26,7 +26,8 @@ DB_PORT=5432
 DB_NAME=finance_tracker
 DB_USER=postgres
 DB_PASSWORD=postgres
-PIN_SECRET=your-secret-key-here
+JWT_SECRET=your-secret-key-here-change-in-production
+JWT_EXPIRES_IN=7d
 ```
 
 ## Step 4: Run Migrations
@@ -51,19 +52,33 @@ npm start
 
 ## Testing the API
 
-### Health Check (No PIN required)
+### Health Check (No authentication required)
 ```bash
 curl http://localhost:3001/health
 ```
 
-### Get Settings (PIN required)
+### Sign Up (Create account)
 ```bash
-curl -H "X-PIN: your-pin" http://localhost:3001/api/settings
+curl -X POST http://localhost:3001/api/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "password123"}'
 ```
 
-### Get Expenses (PIN required)
+### Sign In
 ```bash
-curl -H "X-PIN: your-pin" http://localhost:3001/api/expenses
+curl -X POST http://localhost:3001/api/auth/signin \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "password123"}'
+```
+
+### Get Settings (JWT required)
+```bash
+curl -H "Authorization: Bearer <your-jwt-token>" http://localhost:3001/api/settings
+```
+
+### Get Expenses (JWT required)
+```bash
+curl -H "Authorization: Bearer <your-jwt-token>" http://localhost:3001/api/expenses
 ```
 
 ## Frontend Integration

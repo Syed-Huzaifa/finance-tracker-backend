@@ -1,21 +1,27 @@
 import express from 'express';
 import pool from '../db/connection.js';
+import { AuthenticatedRequest } from '../middleware/jwtAuth.js';
 
 const router = express.Router();
 
 // Get all expenses with optional date filtering
-router.get('/', async (req, res) => {
+router.get('/', async (req: AuthenticatedRequest, res) => {
   try {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { startDate, endDate } = req.query;
     
     let query = `
       SELECT e.*, c.name as category_name, c.icon as category_icon, c.color as category_color
       FROM public.expenses e
       LEFT JOIN public.categories c ON e.category_id = c.id
-      WHERE 1=1
+      WHERE e.user_id = $1
     `;
-    const params: any[] = [];
-    let paramIndex = 1;
+    const params: any[] = [userId];
+    let paramIndex = 2;
 
     if (startDate) {
       query += ` AND e.expense_date >= $${paramIndex++}`;
@@ -55,15 +61,20 @@ router.get('/', async (req, res) => {
 });
 
 // Create expense
-router.post('/', async (req, res) => {
+router.post('/', async (req: AuthenticatedRequest, res) => {
   try {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { amount, category_id, description, expense_date } = req.body;
     
     const { rows } = await pool.query(
-      `INSERT INTO public.expenses (amount, category_id, description, expense_date)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO public.expenses (user_id, amount, category_id, description, expense_date)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [amount, category_id || null, description || null, expense_date || new Date().toISOString().split('T')[0]]
+      [userId, amount, category_id || null, description || null, expense_date || new Date().toISOString().split('T')[0]]
     );
     
     res.status(201).json(rows[0]);
@@ -74,8 +85,13 @@ router.post('/', async (req, res) => {
 });
 
 // Update expense
-router.put('/:id', async (req, res) => {
+router.put('/:id', async (req: AuthenticatedRequest, res) => {
   try {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { id } = req.params;
     const { amount, category_id, description, expense_date } = req.body;
     
@@ -85,9 +101,9 @@ router.put('/:id', async (req, res) => {
            category_id = COALESCE($2, category_id),
            description = COALESCE($3, description),
            expense_date = COALESCE($4, expense_date)
-       WHERE id = $5
+       WHERE id = $5 AND user_id = $6
        RETURNING *`,
-      [amount, category_id, description, expense_date, id]
+      [amount, category_id, description, expense_date, id, userId]
     );
     
     if (rows.length === 0) {
@@ -102,13 +118,18 @@ router.put('/:id', async (req, res) => {
 });
 
 // Delete expense
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', async (req: AuthenticatedRequest, res) => {
   try {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { id } = req.params;
     
     const { rows } = await pool.query(
-      'DELETE FROM public.expenses WHERE id = $1 RETURNING *',
-      [id]
+      'DELETE FROM public.expenses WHERE id = $1 AND user_id = $2 RETURNING *',
+      [id, userId]
     );
     
     if (rows.length === 0) {

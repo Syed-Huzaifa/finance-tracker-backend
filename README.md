@@ -47,8 +47,9 @@ DB_NAME=finance_tracker
 DB_USER=YOUR_DB_USER
 DB_PASSWORD=YOUR_DB_PASSWORD
 
-# PIN Security (for hashing PINs)
-PIN_SECRET=your-secret-key-here-change-in-production
+# JWT Security
+JWT_SECRET=your-secret-key-here-change-in-production
+JWT_EXPIRES_IN=7d
 ```
 
 4. Create the PostgreSQL database:
@@ -88,10 +89,18 @@ npm start
 
 ## API Endpoints
 
-All endpoints require a PIN in the `X-PIN` header (except `/health`).
+All endpoints require JWT authentication (except `/health` and `/api/auth/*`).
 
 ### Health Check
 - `GET /health` - Check if the server is running
+
+### Authentication
+- `POST /api/auth/signup` - Create a new user account
+  - Body: `{ "email": "user@example.com", "password": "password123" }`
+  - Returns: `{ "token": "jwt-token", "user": { "id": "uuid", "email": "user@example.com" } }`
+- `POST /api/auth/signin` - Sign in with existing account
+  - Body: `{ "email": "user@example.com", "password": "password123" }`
+  - Returns: `{ "token": "jwt-token", "user": { "id": "uuid", "email": "user@example.com" } }`
 
 ### Settings
 - `GET /api/settings` - Get settings
@@ -144,18 +153,46 @@ All endpoints require a PIN in the `X-PIN` header (except `/health`).
 
 ## Authentication
 
-The API uses PIN-based authentication. Include the PIN in the request header:
+The API uses JWT (JSON Web Token) authentication. After signing up or signing in, include the token in the Authorization header:
+
 ```
-X-PIN: your-pin-here
+Authorization: Bearer <your-jwt-token>
 ```
 
-**Note:** Currently, the PIN is stored as plain text for simplicity. In production, you should implement proper hashing using bcrypt.
+### Example Usage
+
+1. **Sign up** (create a new account):
+```bash
+curl -X POST http://localhost:3001/api/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "password123"}'
+```
+
+2. **Sign in** (existing account):
+```bash
+curl -X POST http://localhost:3001/api/auth/signin \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "password123"}'
+```
+
+3. **Use protected endpoints**:
+```bash
+curl http://localhost:3001/api/settings \
+  -H "Authorization: Bearer <your-jwt-token>"
+```
+
+**Security Notes:**
+- Passwords are hashed using bcrypt before storage
+- JWT tokens expire after 7 days (configurable via `JWT_EXPIRES_IN` environment variable)
+- Store tokens securely on the client side (e.g., in localStorage or httpOnly cookies)
+- In production, use a strong `JWT_SECRET` environment variable
 
 ## Database Schema
 
 The database includes the following tables:
-- `settings` - Application settings and PIN
-- `categories` - Expense categories
+- `users` - User accounts (email and password hash)
+- `settings` - Application settings (linked to users)
+- `categories` - Expense categories (linked to users)
 - `expenses` - Individual expenses
 - `fixed_expenses` - Fixed expenses and subscriptions
 - `credit_cards` - Credit card information
@@ -176,8 +213,9 @@ finance-tracker-backend/
 │   │   ├── migrate.ts          # Database migration script
 │   │   └── seed.ts             # Database seeding script
 │   ├── middleware/
-│   │   └── pinAuth.ts          # PIN authentication middleware
+│   │   └── jwtAuth.ts          # JWT authentication middleware
 │   ├── routes/
+│   │   ├── auth.ts             # Authentication routes (signup/signin)
 │   │   ├── settings.ts
 │   │   ├── categories.ts
 │   │   ├── expenses.ts
