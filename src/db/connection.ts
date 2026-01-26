@@ -1,27 +1,21 @@
-import pg from 'pg';
-import dotenv from 'dotenv';
+import { Pool } from "pg";
 
-dotenv.config();
-
-const { Pool } = pg;
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL is not set");
+}
 
 const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME || 'finance_tracker',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres',
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
 });
 
-// Test connection
-pool.on('connect', () => {
-  console.log('Connected to PostgreSQL database');
+pool.on("connect", () => {
+  console.log("Connected to PostgreSQL");
 });
 
-pool.on('error', (err) => {
-  console.error('Unexpected error on idle client', err);
-  process.exit(-1);
+pool.on("error", (err) => {
+  console.error("Unexpected PG error", err);
+  process.exit(1);
 });
 
 export default pool;
-
