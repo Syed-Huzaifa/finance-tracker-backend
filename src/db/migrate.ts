@@ -212,6 +212,28 @@ async function migrate() {
       );
     `);
 
+    // Create AI analyses table (stores generated AI financial analyses)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS public.ai_analyses (
+        id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+        user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+        result JSONB NOT NULL,
+        model TEXT,
+        instructions TEXT,
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+      );
+    `);
+
+    // Backfill the column for databases created before custom instructions existed.
+    await client.query(`
+      ALTER TABLE public.ai_analyses ADD COLUMN IF NOT EXISTS instructions TEXT;
+    `);
+
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_ai_analyses_user_created
+        ON public.ai_analyses (user_id, created_at DESC);
+    `);
+
     // Create function to update timestamps
     await client.query(`
       CREATE OR REPLACE FUNCTION public.update_updated_at_column()

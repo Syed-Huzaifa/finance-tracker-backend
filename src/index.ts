@@ -9,6 +9,7 @@ import fixedExpensesRouter from './routes/fixedExpenses.js';
 import creditCardsRouter from './routes/creditCards.js';
 import debtsRouter from './routes/debts.js';
 import goalsRouter from './routes/goals.js';
+import aiAnalysisRouter from './routes/aiAnalysis.js';
 import { verifyToken } from './middleware/jwtAuth.js';
 
 dotenv.config();
@@ -40,6 +41,7 @@ app.use('/api/fixed-expenses', fixedExpensesRouter);
 app.use('/api/credit-cards', creditCardsRouter);
 app.use('/api/debts', debtsRouter);
 app.use('/api/goals', goalsRouter);
+app.use('/api/ai-analysis', aiAnalysisRouter);
 
 // Error handling middleware
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -52,10 +54,17 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Finance Tracker API server is running on port ${PORT}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 Health check: http://localhost:${PORT}/health`);
-});
+// Start a standalone server for local dev / non-serverless hosts.
+// On Vercel the app is imported by api/index.ts as a serverless handler, so we
+// must NOT call listen there (Vercel sets the VERCEL env var in that runtime).
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Finance Tracker API server is running on port ${PORT}`);
+    console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+  });
+}
+
+// Exported so serverless platforms (Vercel) can use the app as a request handler.
+export default app;
 

@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { Pool } from "pg";
 
 if (!process.env.DATABASE_URL) {
@@ -6,7 +7,9 @@ if (!process.env.DATABASE_URL) {
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  // SSL is required by hosted Postgres (e.g. Render) but unsupported by a
+  // default local server. Default to SSL; set PGSSL=disable for local dev.
+  ssl: process.env.PGSSL === 'disable' ? false : { rejectUnauthorized: false }
 });
 
 pool.on("connect", () => {

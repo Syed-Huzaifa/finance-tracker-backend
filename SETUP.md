@@ -28,6 +28,7 @@ DB_USER=postgres
 DB_PASSWORD=postgres
 JWT_SECRET=your-secret-key-here-change-in-production
 JWT_EXPIRES_IN=7d
+ANTHROPIC_API_KEY=sk-ant-...   # required for the AI Analysis feature
 ```
 
 ## Step 4: Run Migrations
