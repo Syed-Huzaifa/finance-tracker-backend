@@ -212,6 +212,14 @@ async function migrate() {
       );
     `);
 
+    // Auth0 integration: identify users by their Auth0 subject, and relax the
+    // local-password columns (Auth0 owns authentication now).
+    await client.query(`ALTER TABLE public.users ADD COLUMN IF NOT EXISTS auth0_sub TEXT;`);
+    await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS users_auth0_sub_key ON public.users (auth0_sub);`);
+    await client.query(`ALTER TABLE public.users ALTER COLUMN password_hash DROP NOT NULL;`);
+    await client.query(`ALTER TABLE public.users ALTER COLUMN email DROP NOT NULL;`);
+    await client.query(`ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_email_key;`);
+
     // Create AI analyses table (stores generated AI financial analyses)
     await client.query(`
       CREATE TABLE IF NOT EXISTS public.ai_analyses (

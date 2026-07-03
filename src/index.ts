@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import authRouter from './routes/auth.js';
 import settingsRouter from './routes/settings.js';
 import categoriesRouter from './routes/categories.js';
 import expensesRouter from './routes/expenses.js';
@@ -10,7 +9,7 @@ import creditCardsRouter from './routes/creditCards.js';
 import debtsRouter from './routes/debts.js';
 import goalsRouter from './routes/goals.js';
 import aiAnalysisRouter from './routes/aiAnalysis.js';
-import { verifyToken } from './middleware/jwtAuth.js';
+import { checkJwt, resolveUser } from './middleware/auth0.js';
 
 dotenv.config();
 
@@ -27,11 +26,9 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Finance Tracker API is running' });
 });
 
-// Auth routes (no authentication required)
-app.use('/api/auth', authRouter);
-
-// Apply JWT verification middleware to all protected API routes
-app.use('/api', verifyToken);
+// Authentication is handled by Auth0. Every /api route requires a valid Auth0
+// access token (checkJwt) and is mapped to a local user row (resolveUser).
+app.use('/api', checkJwt, resolveUser);
 
 // Protected routes
 app.use('/api/settings', settingsRouter);
@@ -43,10 +40,15 @@ app.use('/api/debts', debtsRouter);
 app.use('/api/goals', goalsRouter);
 app.use('/api/ai-analysis', aiAnalysisRouter);
 
-// Error handling middleware
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+// Error handling middleware. Auth failures from express-oauth2-jwt-bearer carry
+// a numeric `status` (401) — honor it instead of masking everything as 500.
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Error:', err);
-  res.status(500).json({ error: 'Internal server error', message: err.message });
+  const status = typeof err?.status === 'number' ? err.status : 500;
+  res.status(status).json({
+    error: status === 401 ? 'Unauthorized' : 'Internal server error',
+    message: err?.message,
+  });
 });
 
 // 404 handler
@@ -67,4 +69,3 @@ if (!process.env.VERCEL) {
 
 // Exported so serverless platforms (Vercel) can use the app as a request handler.
 export default app;
-
